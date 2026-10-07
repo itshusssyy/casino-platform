@@ -1,0 +1,45 @@
+{
+  "name": "casino-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dashboard": "node scripts/launcher.mjs",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "make-admin": "tsx scripts/make-admin.ts",
+    "typecheck": "tsc --noEmit",
+    "db:local": "pglite-server --db=./.pgdata --port=54329 --max-connections=4 --extensions=pgcrypto",
+    "db:setup-sql": "prisma db execute --file supabase/setup.sql --schema prisma/schema.prisma",
+    "rtp-check": "tsx scripts/rtp-check.ts",
+    "smoke-test": "node scripts/smoke-test.mjs",
+    "supabase:setup": "prisma db push && prisma db execute --file supabase/setup.sql --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
+    "next": "16.4.0",
+    "prisma": "^6.19.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "@tailwindcss/turbopack": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

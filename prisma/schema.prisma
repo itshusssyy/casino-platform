@@ -1,0 +1,191 @@
+// Postgres. Production = Supabase (see supabase/README.md). Local dev = PGlite (npm run db:local).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (Supabase: port 6543, ?pgbouncer=true)
+  directUrl = env("DIRECT_URL") // direct connection used by prisma db push / migrations
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  username      String?  @unique // legacy; new signups use first/last name + phone
+  firstName     String?
+  lastName      String?
+  phone         String?  @unique // E.164, e.g. +15551234567
+  name          String?
+  image         String?
+  passwordHash  String?
+  sessionVersion Int    @default(0) // bump to log the user out everywhere (password reset)
+  googleId      String?  @unique
+  role          String   @default("USER") // USER | ADMIN
+  // ACTIVE = normal · PAUSED = can log in and view, but cannot play, claim or request payouts
+  // FROZEN = cannot log in at all. Edit this column from the admin panel or Supabase Table Editor.
+  status        String   @default("ACTIVE")
+  statusNote    String?  // reason shown to the user (optional)
+  // NORMAL = fair house RTP · TIGHT = high house edge (~80% loss) · FORCE_LOSS = 100% loss trap
+  lossMode      String   @default("NORMAL")
+  balance       Int      @default(0) // virtual coins, always an integer
+  referralCode  String?  @unique
+  referredById  String?
+  referredBy    User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals     User[]   @relation("Referrals")
+  totalDepositCents Int  @default(0) // sum of approved deposits, used for referral tiers
+  // Bonus lock: bonus coins (signup credit, cashback, referral) cannot be withdrawn until
+  // bonusWagerLeft coins have been bet. depositWagerLeft = deposit play-through before any withdrawal.
+  bonusCoins       Int     @default(0)
+  bonusWagerLeft   Int     @default(0)
+  depositWagerLeft Int     @default(0)
+  totalWagered     Int     @default(0)
+  signupBonusHeld  Boolean @default(false) // signup credit withheld pending review (shared device)
+  signupIp         String?
+  signupDeviceId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+
+  transactions    Transaction[]
+  bets            Bet[]
+  gameSessions    GameSession[]
+  paymentRequests PaymentRequest[]
+  referralRewards ReferralReward[] @relation("Referrer")
+  referredRewards ReferralReward[] @relation("Referred")
+  devices         DeviceLog[]
+  riskFlags       RiskFlag[]
+}
+
+// Every balance change is recorded here (ledger).
+model Transaction {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   // SIGNUP_BONUS | BET | WIN | REFUND | ADMIN_CREDIT | ADMIN_DEBIT | DEPOSIT | WITHDRAWAL | PROMO_BONUS | REFERRAL_BONUS
+  amount       Int      // signed: + credit, - debit
+  balanceAfter Int
+  note         String?
+  createdBy    String?  // admin user id for manual adjustments
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// One row per settled game round.
+model Bet {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game       String
+  amount     Int
+  payout     Int
+  multiplier Float
+  details    String   // JSON
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([game, createdAt])
+}
+
+// Server-side state for multi-step games (blackjack, mines, hi-lo, video poker, crash).
+// The client never sees the deck / mine positions / crash point.
+model GameSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game      String
+  bet       Int
+  state     String   // JSON
+  status    String   @default("ACTIVE") // ACTIVE | FINISHED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, game, status])
+}
+
+// Placeholder for licensed payment providers. Disabled unless PAYMENTS_ENABLED / WITHDRAWALS_ENABLED.
+model PaymentRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        String    // DEPOSIT | WITHDRAWAL
+  provider    String
+  amountCents Int
+  coins       Int
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reference   String?
+  note        String?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, createdAt])
+}
+
+// Admin-editable settings (bonuses, pricing, promotions, per-game RTP/limits). One JSON row.
+model Setting {
+  key       String   @id
+  value     String   // JSON
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+// Reward earned by a referrer when the user they invited reaches a deposit tier.
+// The referrer claims it from the wallet page; an admin approves before coins are credited.
+model ReferralReward {
+  id             String    @id @default(cuid())
+  referrerId     String
+  referrer       User      @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUserId String
+  referredUser   User      @relation("Referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+  tierCents      Int       // deposit total that unlocked it
+  rewardCents    Int
+  coins          Int
+  status         String    @default("AVAILABLE") // AVAILABLE | CLAIM_REQUESTED | PAID | REJECTED
+  claimedAt      DateTime?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([referredUserId, tierCents])
+  @@index([status, createdAt])
+  @@index([referrerId])
+}
+
+// Every signup / login with the device and network it came from (multi-account detection).
+model DeviceLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event       String   // SIGNUP | LOGIN
+  deviceId    String?  // random ID stored in a cookie on the browser
+  fingerprint String?  // hash of browser/screen traits (can collide on identical phones)
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([deviceId])
+  @@index([fingerprint])
+  @@index([ip])
+  @@index([userId])
+}
+
+// Things that look suspicious, for an admin to review on /admin/risk.
+model RiskFlag {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String    // SHARED_DEVICE | SHARED_FINGERPRINT | SHARED_IP | SHARED_PAYOUT | REFERRAL_SELF | BIG_WIN | HIGH_PROFIT | NO_PLAY_WITHDRAW | BONUS_HELD
+  severity     String    // LOW | MEDIUM | HIGH
+  details      String
+  relatedUsers String?   // JSON array of user IDs
+  status       String    @default("OPEN") // OPEN | DISMISSED | ACTIONED
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId, type])
+}

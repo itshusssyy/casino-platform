@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0b14;
+  --panel: #151525;
+  --panel-2: #1d1d33;
+  --line: #2a2a45;
+  --text: #ececf4;
+  --muted: #9a9ab5;
+  --gold: #f5c542;
+  --gold-2: #e0a800;
+  --win: #22c55e;
+  --lose: #ef4444;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-gold: var(--gold);
+  --color-gold-2: var(--gold-2);
+  --color-win: var(--win);
+  --color-lose: var(--lose);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html { color-scheme: dark; }
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #2a1650 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, #10304a 0%, transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@utility panel {
+  @apply rounded-2xl border border-line bg-panel/90 backdrop-blur; 
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold transition active:scale-[.97] disabled:opacity-50 disabled:pointer-events-none; 
+}
+@utility btn-gold {
+  @apply btn bg-gradient-to-b from-gold to-gold-2 text-black shadow-[0_6px_20px_-6px_rgba(245,197,66,.6)] hover:brightness-110; 
+}
+@utility btn-ghost {
+  @apply btn border border-line bg-panel-2 text-text hover:border-gold/60; 
+}
+@utility btn-green {
+  @apply btn bg-win text-black hover:brightness-110; 
+}
+@utility btn-red {
+  @apply btn bg-lose text-white hover:brightness-110; 
+}
+@utility input {
+  @apply w-full rounded-xl border border-line bg-bg/70 px-3 py-2.5 text-text outline-none placeholder:text-muted/60 focus:border-gold; 
+}
+@utility label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted; 
+}
+@utility chip {
+  @apply rounded-full border border-line bg-panel-2 px-2.5 py-1 text-xs;
+}
+
+@keyframes pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
+.animate-pop { animation: pop .35s ease-out both; }
+
+@keyframes flipin { from { transform: rotateY(90deg) } to { transform: rotateY(0) } }
+.animate-flipin { animation: flipin .3s ease-out both; }
+
+@keyframes reelspin { 0% { transform: translateY(-30%); filter: blur(2px) } 100% { transform: translateY(30%); filter: blur(2px) } }
+.animate-reel { animation: reelspin .12s linear infinite; }
+
+@keyframes coinflip { 0% { transform: rotateY(0) } 100% { transform: rotateY(1800deg) } }
+.animate-coin { animation: coinflip 1.2s cubic-bezier(.2,.7,.3,1) both; }
+
+/* Keep the floating WhatsApp button above a game's mobile action bar. */
+@media (max-width: 639px) {
+  body:has([data-mobile-bar]) .wa-float { bottom: 8.5rem; }
+}
+
+@keyframes marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+.animate-marquee { animation: marquee 40s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .animate-marquee { animation: none; } }
